@@ -114,6 +114,105 @@ def known_hosts():
     return out
 
 
+def add_credential(name, host, port=443, api_token="", username="FMG_REST_API", verify_ssl=False):
+    """WRITE-ONCE onboarding: append a new FMG entry to the creds yaml. The app never reads
+    tokens back — this is the single place it ever touches one, and only to write it.
+
+    Returns ("host_exists", <existing_name>) if the host already has an entry (nothing written),
+    or ("added", <snapshot_bytes_or_None>) — pass the snapshot to restore_creds_snapshot() to
+    roll back if the follow-up connection test fails. Existing file bytes are NEVER re-encoded
+    (append-only, ASCII entry), so comments and formatting survive untouched. Raises ValueError
+    on bad input, a duplicate name, or an unappendable layout; errors never include the token."""
+    import re
+    import yaml
+    name, host = str(name).strip(), str(host).strip()
+    username = str(username).strip() or "FMG_REST_API"
+    api_token = str(api_token).strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", name):
+        raise ValueError("friendly name: 1-64 chars, letters/digits/dot/dash/underscore, "
+                         "starting with a letter or digit (e.g. customer2-fmg).")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,253}", host):
+        raise ValueError("host must be an IP or FQDN (letters/digits/dot/dash/colon).")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,63}", username):
+        raise ValueError("username: letters/digits/dot/dash/underscore/@ only.")
+    if not api_token or not api_token.isascii() or any(c.isspace() for c in api_token):
+        raise ValueError("API key is required (ASCII, no spaces) — paste it exactly as "
+                         "`execute api-user generate-key` printed it.")
+    port = int(port)
+    if not 1 <= port <= 65535:
+        raise ValueError("port must be 1-65535.")
+
+    prev = CREDS_YAML.read_bytes() if CREDS_YAML.exists() else None
+    if prev is None:
+        prev_text, data = None, {}
+    else:
+        try:
+            prev_text = prev.decode("utf-8")
+        except UnicodeDecodeError:
+            prev_text = prev.decode("cp1252", errors="replace")
+        try:
+            data = yaml.safe_load(prev_text) or {}
+        except Exception:
+            raise ValueError(f"{CREDS_YAML} exists but is not valid YAML — fix it by hand "
+                             "first (nothing was written).")
+    sections = list(data.items()) if isinstance(data, dict) else []
+    for _sec, entries in sections:                       # host wins over name: "already onboarded"
+        if isinstance(entries, dict):
+            for n, cfg in entries.items():
+                if isinstance(cfg, dict) and str(cfg.get("host", "")) == host:
+                    return ("host_exists", str(n))
+    for _sec, entries in sections:
+        if isinstance(entries, dict) and name in entries:
+            raise ValueError(f"an entry named '{name}' already exists (different host) — "
+                             "pick another friendly name.")
+
+    tok = api_token.replace("\\", "\\\\").replace('"', '\\"')
+    entry = (f"  {name}:\n"
+             f"    host: {host}\n"
+             f"    port: {port}\n"
+             f"    auth_method: token\n"
+             f'    api_token: "{tok}"\n'
+             f"    username: {username}\n"
+             f"    verify_ssl: {'true' if verify_ssl else 'false'}\n"
+             f'    notes: "added via MSSP Deploy onboarding form"\n')
+    if prev is None:
+        head = ("# LOCAL ONLY - never commit. Created by the MSSP Deploy onboarding form;\n"
+                "# the FortiManager-AI-SDK reads it, the app never reads tokens back.\n"
+                "devices:\n")
+        cand_text, cand_bytes = head + entry, (head + entry).encode("ascii")
+    else:
+        nl = "" if prev_text.endswith("\n") else "\n"
+        # Append the bare entry (attaches to the trailing top-level map) unless the file has no
+        # devices: key at all; the parse-verify below catches any layout this can't extend.
+        add = entry if isinstance(data, dict) and isinstance(data.get("devices"), dict) \
+            else "devices:\n" + entry
+        cand_text = prev_text + nl + add
+        cand_bytes = prev + nl.encode("ascii") + add.encode("ascii")
+    try:                                                 # verify BEFORE writing: parse + nothing lost
+        nd = yaml.safe_load(cand_text) or {}
+        dev = nd["devices"][name]
+        ok = str(dev.get("host")) == host and dev.get("api_token") == api_token
+        ok = ok and all(nd.get(k) == v for k, v in sections if k != "devices")
+        old_devs = data.get("devices") or {} if isinstance(data, dict) else {}
+        ok = ok and all(nd["devices"].get(n) == c for n, c in old_devs.items())
+    except Exception:
+        ok = False
+    if not ok:
+        raise ValueError("couldn't safely append to the creds yaml (unusual layout) — nothing "
+                         "was written; add the entry by hand instead.")
+    CREDS_YAML.parent.mkdir(parents=True, exist_ok=True)
+    CREDS_YAML.write_bytes(cand_bytes)
+    return ("added", prev)
+
+
+def restore_creds_snapshot(snapshot):
+    """Roll back an add_credential() write: snapshot=None means the file didn't exist before."""
+    if snapshot is None:
+        CREDS_YAML.unlink(missing_ok=True)
+    else:
+        CREDS_YAML.write_bytes(snapshot)
+
+
 def list_adom_devices(host, adom):
     """READ-ONLY. Live device inventory for an ADOM (fresher than adom-list's device_count).
     There is no SDK tool for this yet, so we call the FMG client directly (read-only) — the tool
