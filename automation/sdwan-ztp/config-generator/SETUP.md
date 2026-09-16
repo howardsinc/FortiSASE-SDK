@@ -31,7 +31,7 @@ when they share a parent folder.
 cd <your-folder>
 git clone <FortiSASE-SDK repo URL>            FortiSASE-SDK
 # Step 1b (only needed for MSSP Deploy / FMG provisioning):
-git clone https://github.com/howardsinc3753/FortiManager-AI-SDK.git   FortiManager-AI-SDK
+git clone https://github.com/howardsinc/FortiManager-AI-SDK.git   FortiManager-AI-SDK
 ```
 
 You should end up with exactly this layout:
