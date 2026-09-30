@@ -482,10 +482,17 @@ else:
                     st.balloons()
 
     # ---- ④½ Point serials at this FMG (FortiZTP) — optional zero-touch loop -----
-    import ztp_provision as ztp
+    try:
+        import ztp_provision as ztp
+    except ModuleNotFoundError:
+        ztp = None
     st.divider()
     st.subheader("④½ Point serials at this FMG (FortiZTP)")
-    _zt_ok, _zt_why = ztp.available()
+    if ztp is None:
+        _zt_ok, _zt_why = False, ("`ztp_provision.py` is not present in this checkout "
+                                  "(it lives next to `fmg_provision.py`).")
+    else:
+        _zt_ok, _zt_why = ztp.available()
     if not _zt_ok:
         st.info(f"**FortiZTP not configured** (optional — the CSV / offline-device flow works "
                 f"without it). {_zt_why}")
