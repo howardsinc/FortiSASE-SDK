@@ -184,7 +184,14 @@ config router static
 {% endif %}        set device "{{ wan_port }}"
         set comment "Bastion / management return path (trusted host)"
     next
-{% for net in trusted_host_routes %}    edit {{ 30 + loop.index0 }}
+{% if fmg_ip %}    edit 12
+        set dst {{ fmg_ip }} 255.255.255.255
+{% if wan_mode == 'static' %}        set gateway {{ mgmt_gateway or wan_gateway }}
+{% else %}        set dynamic-gateway enable
+{% endif %}        set device "{{ wan_port }}"
+        set comment "FortiManager FGFM pinned via WAN underlay"
+    next
+{% endif %}{% for net in trusted_host_routes %}    edit {{ 30 + loop.index0 }}
         set dst {{ net }}
 {% if wan_mode == 'static' %}        set gateway {{ mgmt_gateway or wan_gateway }}
 {% else %}        set dynamic-gateway enable

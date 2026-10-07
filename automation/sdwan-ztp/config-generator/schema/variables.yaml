@@ -496,6 +496,15 @@ variables:
     scope: tenant
     type: netmask
     default: 255.255.255.255
+  - key: fmg_ip
+    label: FortiManager IP (FGFM pin)
+    group: Routing
+    scope: tenant
+    type: ipv4
+    default: ""
+    help: "FortiManager address (the public/NAT side if the FMG is behind NAT). Adds a /32 route out the WAN
+           underlay so FGFM management never rides the SASE overlay once the on-ramp default takes over.
+           Blank = no route."
   - key: mgmt_gateway
     label: Mgmt next-hop gateway (DHCP WAN)
     group: Routing

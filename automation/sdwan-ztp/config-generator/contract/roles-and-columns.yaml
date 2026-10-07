@@ -89,6 +89,7 @@ meta_vars:
   # --- bastion (mgmt) ---
   BASTION_IP:          {scope: tenant,     applies_to: all}   # ADOM default; not an App CSV column
   BASTION_MASK:        {scope: tenant,     applies_to: all}
+  FMG_IP:              {scope: tenant,     applies_to: all}   # ADOM default; FGFM /32 pinned out the WAN underlay (blank = no route)
 
   # --- wan1 ---
   WAN_PORT:            {scope: per_device, applies_to: all, csv: WAN_PORT}

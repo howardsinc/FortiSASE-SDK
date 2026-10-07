@@ -55,6 +55,7 @@ Pick a **role** + **model**; the generator renders the matching FortiOS config +
 
 - **Alt-primary (`Primary on-ramp PoP`)** — a per-site choice (POP1 default / POP2). Set **POP2** to flip a whole **spoke** site's traffic (private *and* internet) to the **secondary** BOR node, so you can split a fleet across both PoPs and share the tenant's aggregate SASE bandwidth. Rides straight through config → CSV → FMG install. *(Spoke roles only — SPA hubs pin to primary; a hub's BOR on-ramps are outbound-only and don't run BGP.)*
 - **Role-based object naming** — tunnels, route-maps, health-checks, and address objects use stable **role** names (`BOR_Primary` / `BOR_Secondary`, `RM_FABRIC_IN`, …), never tenant-specific PoP identity (Dallas / NY / Ashburn), so a NOC reads them the same across every tenant. PoP identity stays in comments only. A build-time drift guard fails loud if identity ever leaks into an object name.
+- **FGFM underlay pin (`fmg_ip`)** — tenant-level FortiManager address renders a `/32` static route out the WAN underlay (route 12, +13 on dual), so FMG management never migrates onto the SASE overlay once the on-ramp default takes over. Blank = no route.
 - **Placeholder guard** — the CSV import pre-flight rejects a blank or placeholder (`<…>`) PoP FQDN with a clear *"enter the real FortiSASE BOR PoP FQDN"* message, before anything reaches FortiManager.
 
 To change ANY field/section, follow **`SKILL-READ-FIRST_MACD.md`** (schema-first).
