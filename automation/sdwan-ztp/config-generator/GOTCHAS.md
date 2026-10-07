@@ -89,3 +89,33 @@ on them. (Hardware note: the 30G has **no `lan3`** at all — ports are `wan`/`l
 - **Rule of thumb:** `wan` IS a valid SD-WAN member on real HW **as long as the factory `lan→wan`
   policy is purged first** (greenfield purge = template-group member 0). The reject means the purge
   isn't running before the SD-WAN validation — not that `wan` is forbidden.
+
+---
+
+## GOTCHA #3 — FMG's device DB does NOT infer `set mode static` from `set ip` (the FortiOS CLI does)
+
+### Symptom
+CSV has `WAN_MODE=static`, the per-device meta vars are all correct, the static-route template even
+rendered `set gateway` on every route — yet Device Manager shows the WAN port **Addressing Mode: DHCP**,
+and the install pushes DHCP with the static IP ignored. First seen 2026-10-07: `aws-spoke-1` in
+`GreenField3` (serial FGVMMLTM26000452, platform FortiGate-VM64-KVM).
+
+### Root cause
+On a FortiGate console, `set ip <ip> <mask>` implicitly flips an interface to static. FMG's device DB
+is a normalized table: `mode` keeps whatever the model device was **seeded** with at create time, and
+`set ip` only fills the `ip` field. FortiGate-VM64-KVM model devices seed port1 as `mode dhcp`
+(FortiGate-ARM64-AWS seeded it static — which is why months of AWS spokes never showed this). Every
+interface template, both repos, only emitted `set ip` in the static branch → devdb = `mode dhcp` +
+`ip 10.200.1.10/24` → install serializes the DB → box comes up DHCP.
+
+### THE FIX
+All 12 interface templates now write `set mode static` before `set ip` in the static branch (App:
+`templates/*.conf.j2`, commit 0ae3cc9; FMG-SDK adom-init: the eight `BOR-*-03-INTERFACES-{VM,HW}.j2`,
+commit 7bac51a). The dhcp branch is unchanged.
+- **Existing ADOMs** still hold the old scripts — re-push the eight INTERFACES templates.
+- **An already-imported device** needs port1 flipped once (Device Manager → device → Interface →
+  port1 → Addressing Mode: Manual, keep the IP) or a re-render after the template push.
+
+### Rule of thumb
+In FMG CLI templates never rely on a FortiOS implicit side-effect — state every attribute you need
+(`mode`, `type`, `vdom`). What the devdb holds is what gets installed, not what the CLI would infer.
