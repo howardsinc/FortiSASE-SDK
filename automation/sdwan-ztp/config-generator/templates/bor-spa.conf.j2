@@ -42,7 +42,8 @@ end
 config system interface
     edit "{{ wan_port }}"
         set alias "WAN"
-{% if wan_mode == 'static' %}        set ip {{ wan_ip }} {{ wan_mask }}
+{% if wan_mode == 'static' %}        set mode static
+        set ip {{ wan_ip }} {{ wan_mask }}
 {% else %}        set mode dhcp
         set distance {{ wan_dhcp_distance | default(20) }}
 {% endif %}        set allowaccess ping https ssh fgfm
