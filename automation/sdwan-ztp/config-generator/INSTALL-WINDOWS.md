@@ -105,33 +105,48 @@ use the app.
 ## Step 6 — Connect to FortiManager (for the MSSP Deploy page)
 
 The app never stores a password — it reads a FortiManager **API token** from a small file on
-your laptop. You need two things **from the FortiManager admin (Daniel)**:
+your laptop. You create that token on **your own FortiManager** once.
 
-1. The **FortiManager address** (IP or hostname) and an **API token** for it.
-2. He must add **your laptop's public IP** to the API user's *Trusted Hosts* on FortiManager,
-   otherwise every connection is refused. Find your public IP and send it to him — paste:
-   ```powershell
-   (Invoke-WebRequest -UseBasicParsing https://api.ipify.org).Content
-   ```
-   (If that fails, open <https://whatismyip.com> in a browser.) Note: if you move to a
-   different network — home, hotel, phone hotspot — your public IP changes and he has to add
-   the new one.
+**Before you start, check your FortiManager:**
+- Version **7.6 or newer** (the app uses Jinja CLI templates, which older versions don't have).
+- **ADOMs enabled**: FortiManager GUI → *System Settings → Dashboard → System Information →
+  Administrative Domain* must say **Enabled**. (If it says Disabled, click it and enable; the
+  app creates one ADOM per customer.)
+- Leave **Workspace Mode** at its default (*Disabled*).
 
-Then create the token file. Paste these two lines (the second one opens Notepad):
+**6a. Find your laptop's public IP** — paste:
+```powershell
+(Invoke-WebRequest -UseBasicParsing https://api.ipify.org).Content
+```
+(If that fails, open <https://whatismyip.com> in a browser.) Write it down. FortiManager only
+accepts API calls from IPs you list, so if you later move to a different network — home,
+hotel, phone hotspot — you'll have to add the new IP in step 6b.
+
+**6b. Create the API user on your FortiManager** (GUI):
+1. *System Settings → Administrators → Create New → REST API Admin*
+2. **User Name:** `FMG_REST_API`
+3. **Admin Profile:** `Super_User`
+4. **Administrative Domain:** All ADOMs
+5. **JSON API Access:** Read-Write
+6. **Trusted Hosts:** your public IP from 6a, as `<your IP>/32` (you can add more later)
+7. Click **OK**. FortiManager shows the **API token once** — copy it somewhere safe right now.
+   If you lose it, come back here and click **Regenerate** to get a new one.
+
+**6c. Put the token in the credentials file.** Paste these two lines (the second one opens Notepad):
 ```powershell
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\mcp"
 notepad "$env:USERPROFILE\.config\mcp\fortimanager_credentials.yaml"
 ```
 Notepad asks whether to create the file — click **Yes**. Paste this in, replace the two
-`<...>` values with what Daniel gave you, keep everything else exactly as is (the spaces matter),
-then **File → Save** and close Notepad:
+`<...>` values with your FortiManager's address and the token from 6b, keep everything else
+exactly as is (the spaces matter), then **File → Save** and close Notepad:
 ```yaml
 devices:
   lab-fmg:
-    host: <FortiManager IP or hostname>
+    host: <your FortiManager IP or hostname>
     port: 443
     auth_method: token
-    api_token: <paste the API token here>
+    api_token: <paste the token from 6b here>
     username: FMG_REST_API
     verify_ssl: false
 ```
@@ -140,21 +155,27 @@ devices:
 `lab-fmg` in the host dropdown and click **🔌 Test Connection**. You should get a green gate
 and a list of ADOMs. If it's red, see Troubleshooting below.
 
+Your first deployment then follows the page top to bottom: **② Create new ADOM** (dry-run, then
+create — it bootstraps the templates and variables), **③** upload the CSV from the Config
+Generator (dry-run, then import), **④** preview, then install. The FortiGates must be able to
+reach your FortiManager on TCP 541 (FGFM) to dial home and pick up their config.
+
 ---
 
 ## Step 7 (optional) — FortiSASE Tenant Status page
 
-This read-only dashboard needs a FortiSASE API user. Ask Daniel for the **API ID** and
-**password**, then paste:
+This read-only dashboard needs an API user for **your FortiSASE tenant**. Whoever administers
+the tenant creates it in FortiCloud IAM (*support.fortinet.com → Services → IAM → API Users →
+Add New*, with FortiSASE access) and gives you its **API ID** and **password**. Then paste:
 ```powershell
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\fortisase"
 notepad "$env:USERPROFILE\.config\fortisase\fortisase_credentials.yaml"
 ```
 Paste, fill in, save:
 ```yaml
-api_id: <API ID from Daniel>
+api_id: <API ID of the FortiSASE API user>
 client_id: FortiSASE
-password: <API password from Daniel>
+password: <its password>
 ```
 Then in the app open **FortiSASE Tenant Status** → **🔑 Use saved lab creds**.
 
@@ -169,7 +190,7 @@ python -m streamlit run app.py
 ```
 Stop it: **Ctrl + C** in the PowerShell window.
 
-Get the latest version (run every week or when Daniel says there's an update):
+Get the latest version (run every week, or whenever you're told there's an update):
 ```powershell
 cd C:\Projects\FortiSASE-SDK
 git pull
@@ -191,7 +212,8 @@ Then restart the app.
 | Browser shows "This site can't be reached" | The app isn't running. Check the PowerShell window for a red error and start it again (Step 5). |
 | `Port 8501 is already in use` | Another copy is running. Close the other PowerShell window, or start with `python -m streamlit run app.py --server.port 8502` and open http://localhost:8502. |
 | MSSP Deploy says **FortiManager-AI-SDK not found** | The second repo isn't next to the first. Re-check Step 3 — both folders must be directly under `C:\Projects`. |
-| **Test Connection** is red | Either the token in the file is wrong or expired, or your public IP isn't in the API user's Trusted Hosts (Step 6). Re-send your current public IP to Daniel. |
+| **Create new ADOM** fails immediately | ADOMs aren't enabled on your FortiManager, or the API user isn't `Super_User` / *All ADOMs*. Re-check the "Before you start" list in Step 6. |
+| **Test Connection** is red | Either the token in the file is wrong or expired, or your current public IP isn't in the API user's Trusted Hosts. Re-check 6a (your IP may have changed) and add it under *System Settings → Administrators → FMG_REST_API → Trusted Hosts*. |
 | The host dropdown on MSSP Deploy is empty | The credentials file is in the wrong place or has a typo. Re-open it with the `notepad` line in Step 6 and compare with the template — indentation must be exactly two spaces. |
 | The app looks different after `git pull` | Expected — restart the app to load the update. |
 
