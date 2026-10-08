@@ -34,6 +34,7 @@ pip install -r requirements.txt
 python generator.py --roundtrip        # render the 3 known sites -> generated/
 streamlit run app.py                   # the SE form (http://localhost:8501)
 ```
+> **Installing on a Windows laptop, step by step? Follow [`INSTALL-WINDOWS.md`](INSTALL-WINDOWS.md).**
 > **Setting up a partner (or an AI agent) from scratch? Follow [`SETUP.md`](SETUP.md)** — it covers
 > both the offline generator and the live FortiManager provisioning in one doc.
 

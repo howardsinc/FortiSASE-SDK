@@ -4,6 +4,9 @@ The single onramp. Follow top to bottom and you'll have the app running with bot
 config generator **and** its live FortiManager provisioning. Works for a human or an AI coding
 agent — every step is copy-pasteable and uses no machine-specific paths.
 
+> **Windows laptop, first time, not a developer?** Use [`INSTALL-WINDOWS.md`](INSTALL-WINDOWS.md) - the same
+> setup as a numbered PowerShell walkthrough with a check after every step.
+
 **Two things to know first:**
 - The **Config Generator** works **standalone** — no FortiManager, no credentials. If all you want
   is to produce `.conf` / CSV files, do Steps 1, 2, 4 and skip the FMG bits.
@@ -29,7 +32,7 @@ when they share a parent folder.
 
 ```bash
 cd <your-folder>
-git clone <FortiSASE-SDK repo URL>            FortiSASE-SDK
+git clone https://github.com/howardsinc/FortiSASE-SDK.git          FortiSASE-SDK
 # Step 1b (only needed for MSSP Deploy / FMG provisioning):
 git clone https://github.com/howardsinc/FortiManager-AI-SDK.git   FortiManager-AI-SDK
 ```
